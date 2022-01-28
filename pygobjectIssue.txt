@@ -31,12 +31,12 @@ typedef void (* TestCallbackCallbackWData)
                                        );
 ```
 
-The understanding is that PyGObject will marshall (length, drawables) into a Python list.
+The understanding is that PyGObject will marshall (array_length, drawables) into a Python list.
 
 The C library is TestCallback.
-It has two functions,
-the first registers a passed Python function as a callback,
-the second asks the library to call back the registered function
+It has two functions.
+The first registers a passed Python function as a callback.
+The second asks the library to call back the registered function
 (passing back a dummy array of length 2.)
 
 ```
@@ -68,8 +68,8 @@ TypeError: callbackWData() takes 2 positional arguments but 3 were given
 
 
 The above code is abbreviated.
-Full source for the test case is TODO.
+Full source for the test case is at https://github.com/bootchk/vaggaTestPyGObjectCallback.git.
 
-The test case derives from GIMP, see issue 7788.
+The test case derives from GIMP, see issue GIMP#7788.
 In GIMP, other language bindings (lua and javascript and vala)
 behave differently (call the bound native callback with only two arguments.)
