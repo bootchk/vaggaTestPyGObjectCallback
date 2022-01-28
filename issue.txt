@@ -1,0 +1,70 @@
+Gimp issue 7788
+
+2.99 plugin run_func signature for Python inconsistent with signature in other bound languages
+
+
+The signature of goat-exercise-py3.py is:
+
+```
+def run(self, procedure, run_mode, image, n_drawables, drawables, args, run_data):
+```
+
+while the signature of goat-exercise-lua.lua (and similarly for javascript and vala) is:
+
+```
+function run(procedure, run_mode, image, drawables, args, run_data)
+```
+
+Note that the first has an extra argument "n_drawables".
+
+The issue is not too important, the code works, its just inconsistent and strange.
+
+
+### Technical Notes
+
+The run_func registered by a plugin is a callback,
+from the guest language C to the host language e.g. Python.
+
+The run_func in C has the type GimpRunImageFunc, which has signature:
+
+```
+ (...int length, GimpDrawables ** aArray, ...)
+```
+When C invokes the run_func,
+PyGObject (the language binding machinery) should marshal the two arguments (describing an array)
+into one native container type e.g. Python list.
+Apparently that doesn't work for Python, but does work for lua and javascript and vala.
+PyGObject passes the length arg to Python instead of omitting it.
+
+
+### Things I tried to fix it
+
+I made a small test case (not using any GIMP code and just passing one argument, an array container)
+but it doesn't exhibit the same behavior.
+So PyGObject works on a simpler case,
+but something about the full GIMP case makes it not work?
+
+I tried to change type GimpRunImageFunc,
+substituting a GimpObjectArray and also a GList
+instead of (...int length, GObject ** aArray).
+Neither worked, but I could have made mistakes.
+
+### Related issues
+
+First noted in #5312 (which fixes other issues, but not this one.  #5312 can probably be closed.)
+
+There is also PyGObject issue 5312, from Jehan about GObject introspection callbacks and closures, which might be pertinent.
+
+
+
+
+
+
+
+
+
+
+A plugin calls GimpPlugin.main() which enters an event loop in C.
+The event loop calls the create_procedure method in Python,
+which calls into C to register the run_func.
+The event loop in C later invokes the run_func.

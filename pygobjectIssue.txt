@@ -1,0 +1,75 @@
+
+Fails to omit length argument when marshalling C array args to Python list,  in callbacks
+
+The intent is to register a Python function with a C library.
+The function is a callback from the C library to  Python.
+Test case is derived from GIMP code for plugins.
+
+Signature of the Python function:
+
+```
+def callbackWData(drawables, runData):
+```
+
+Intent is for drawables to be a list of opaque pointers to GIMP objects.
+
+The annotated type of the callback in C:
+
+```
+/**
+ * TestCallbackCallbackWData:
+ * @array_length:                           the length of the array
+ * @drawables: (array length=array_length): the input array
+ * @runData:   (closure):                   registered data, passed back at callback time
+ *
+ * The callback is called back from the guest when the host calls callCallbackWData()
+ **/
+typedef void (* TestCallbackCallbackWData)
+                                      (gint     array_length,
+                                       gint   **drawables,
+                                       gpointer runData
+                                       );
+```
+
+The understanding is that PyGObject will marshall (length, drawables) into a Python list.
+
+The C library is TestCallback.
+It has two functions,
+the first registers a passed Python function as a callback,
+the second asks the library to call back the registered function
+(passing back a dummy array of length 2.)
+
+```
+void testcallback_registerPersistentCallbackWData
+  ( TestCallbackCallbackWData aCallback,
+    gpointer                  runData,
+    GDestroyNotify            runDataDestroy
+  );
+
+void testcallback_callCallbackWData ( void );
+```
+
+The test, in Python is:
+
+```
+def callbackWData(drawables, runData):
+  print("Called back")
+
+# Here, we omit the destroyFunction, and the binding provides NULL?
+TestCallback.registerPersistentCallbackWData(callbackWData, 1)
+TestCallback.callCallbackWData()
+```
+
+Expect "Called back" to be printed.
+Yet get:
+```
+TypeError: callbackWData() takes 2 positional arguments but 3 were given
+```
+
+
+The above code is abbreviated.
+Full source for the test case is TODO.
+
+The test case derives from GIMP, see issue 7788.
+In GIMP, other language bindings (lua and javascript and vala)
+behave differently (call the bound native callback with only two arguments.)

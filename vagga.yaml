@@ -1,0 +1,209 @@
+# Small test case for PyGObject
+
+# A Python program that registers a callback with a C library
+
+
+
+containers:
+
+  # basic OS with dev tools
+  baseOSWithDevTools:
+    setup:
+    # 21.10
+    - !Ubuntu impish
+
+    # enable universe repository (where gimp lives)
+    - !UbuntuUniverse
+
+    # basic tools for dev (gcc C compiler)
+    - !Install [build-essential]
+
+
+    # - !Install [gdb]
+
+    # more required build tools
+
+    # GIMP build needs setuptools
+    #- !Install [python3-setuptools]
+
+    # meson and autotools use pkg-config
+    #- !Install [pkg-config]
+
+    # use meson build system
+    - !Install [meson]
+
+    # we use git to get source
+    #- !Install [git]
+
+    # build uses gobject introspection tools
+    - !Install [gobject-introspection]
+
+    # uses glib group of libraries
+    # package comprises glib, gobject, and gio
+    - !Install [glib2.0-dev]
+
+    # the builds deposit introspection data
+    # If omit, get can't find ...gir... when building gegl
+    - !Install [libgirepository1.0-dev]
+
+    # Python3 PyGObject.  See earlier, installed Python3
+    - !Install [ python3-gi]
+    # lua
+    #- !Install [ luajit]
+    #- !Install [ lua-lgi ]
+    # javascript
+    #- !Install [ gjs]
+
+    # remove DNS file that vagga will recreate after build
+    # !!! You must do this last, and not at the beginning of a container build
+    - !Sh "rm /etc/resolv.conf"
+
+
+# Container just on top of base, no new content, just an env
+
+  copyBase:
+    setup:
+    - !Container baseOSWithDevTools
+
+    environ:
+      HOME:            /work/.home
+      GI_TYPELIB_PATH: /usr/local/lib/x86_64-linux-gnu/girepository-1.0:/usr/local/lib/girepository-1.0
+      LD_LIBRARY_PATH: /usr/local/lib/x86_64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH}
+      XDG_DATA_DIRS:   /usr/local/share:/usr/share
+      PATH:            /usr/local/bin:/usr/bin:/bin
+
+
+
+# Container with built library and typelibs
+
+  withLib:
+    setup:
+    - !Container baseOSWithDevTools
+
+    #- !Depends testCallback.c, meson.build
+
+    - !Env
+      # Used to find the glib-introspection dependencies.
+      # gegl builds its introspection data.
+      # To do so, it must find Babl-0.1.gir
+      #XDG_DATA_DIRS: "/usr/local/share:/usr/share"
+      #LD_LIBRARY_PATH: "/usr/local/lib/x86_64-linux-gnu:/usr/lib"
+
+    # GIMP build uses pkgconfig to check dependencies
+    - !Sh |
+        echo "In withLib container"
+        echo "XDG_DATA_DIRS is:"   $XDG_DATA_DIRS
+        echo "LD_LIBRARY_PATH is:" $LD_LIBRARY_PATH
+        echo "HOME is:"            $HOME
+        echo "PATH is:"            $PATH
+
+    # Build (from source) the guest
+    - !Sh |
+        meson setup /work/builddir
+        cd /work/builddir
+        meson compile
+        # install typelib and library
+        meson install
+
+    # remove DNS file that vagga will recreate after build
+    - !Sh "rm /etc/resolv.conf"
+
+    # env that GIMP expects
+    # This is a vagga statement that creates an evironment in the container
+    environ:
+      HOME:            /work/.home
+      GI_TYPELIB_PATH: /usr/local/lib/x86_64-linux-gnu/girepository-1.0:/usr/local/lib/girepository-1.0
+      LD_LIBRARY_PATH: /usr/local/lib/x86_64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH}
+      XDG_DATA_DIRS:   /usr/local/share:/usr/share
+      PATH:            /usr/local/bin:/usr/bin:/bin
+
+
+
+
+
+
+
+
+# Commands that run inside a container
+# E.G. >vagga --use-env DISPLAY runAMGimpGUI
+# which runs the gimp app with a GUI
+
+commands:
+
+  getVersions: !Command
+    description: describe versions of stuff in container baseOSWithDevTools
+    container: baseOSWithDevTools
+    run: |
+      echo "LD_LIBRARY_PATH" $LD_LIBRARY_PATH
+      echo "GLib version from pkg-config" &&  pkg-config --modversion glib-2.0
+      echo "Python version from python3 --version" && python3 --version
+      echo "PyGObject version from python" &&  python3 -c "from gi.repository import GObject
+      GObject.pygobject_version"
+
+      echo "Gimp version from gimp-2.99 --version" && /usr/local/bin/gimp-2.99 --version
+
+
+  runTest: !Command
+    description: Run test program in container having lib
+    container: withLib
+    run: |
+      echo "XDG_DATA_DIRS introspection path ->"    $XDG_DATA_DIRS
+      export GI_TYPELIB_PATH=/usr/local/lib/x86_64-linux-gnu/girepository-1.0:/usr/local/lib/girepository-1.0
+      echo "GI_TYPELIB_PATH introspection path ->"  $GI_TYPELIB_PATH
+      echo "LD_LIBRARY_PATH ->"                     $LD_LIBRARY_PATH
+
+      echo " \n Finding .gir"
+      find / -name TestCallback-0.0.1.gir
+
+      echo " \nFinding .typelib"
+      find / -name TestCallback-0.0.1.typelib
+
+      echo " \nFinding installed library"
+      find / -name libtestCallback.*
+      # expect /usr/local/lib/x86_64-linux-gnu
+
+      echo " \nNames in the library"
+      nm /usr/local/lib/x86_64-linux-gnu/libtestCallback.so
+
+      echo " \nRunning Python test program"
+      # GI_TYPELIB_PATH=/usr/local/lib/x86_64-linux-gnu/girepository-1.0:/usr/local/lib/girepository-1.0
+      python3 testCallback.py
+
+
+
+  buildAndRunTest: !Command
+    description: Build library and run test program on writeable copy of base
+    container: copyBase
+    write-mode: transient-hard-link-copy
+    run: |
+      echo "XDG_DATA_DIRS introspection path ->"    $XDG_DATA_DIRS
+      echo "GI_TYPELIB_PATH introspection path ->"  $GI_TYPELIB_PATH
+      export GI_TYPELIB_PATH=/usr/local/lib/x86_64-linux-gnu/girepository-1.0:/usr/local/lib/girepository-1.0
+      echo "GI_TYPELIB_PATH introspection path ->"  $GI_TYPELIB_PATH
+
+      echo " \n Building..."
+      # meson can't write to the container (to install) unless write-mode as above
+      meson setup --wipe builddir
+      cd builddir
+      meson compile
+      # install typelib and library
+      meson install
+      cd ..
+
+      echo " \n Finding .gir"
+      find / -name TestCallback-0.0.1.gir
+
+      echo " \nFinding .typelib"
+      find / -name TestCallback-0.0.1.typelib
+
+      echo " \nNames in the library"
+      nm /usr/local/lib/x86_64-linux-gnu/libtestCallback.so
+
+      echo " \nCat .gir"
+      cat /usr/local/share/gir-1.0/TestCallback-1.0.gir
+
+      echo " \n Run test program in Python"
+      python3 testCallback.py
+
+      echo " \n Run test program in Python"
+      python3 testCallbackPersistent.py
