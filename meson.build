@@ -5,7 +5,7 @@ glib_dep = dependency('glib-2.0')
 # create meson var 'lib' for the library target
 lib = library(
   'testCallback',       # name
-  ['testCallback.c','testCallbackPersistent.c'],  # sources
+  ['testCallback.c','testCallbackPersistent.c', 'testCallbackGList.c'],  # sources
   dependencies : glib_dep,  # uses GLib
   install: true
   )
@@ -18,7 +18,9 @@ gnome = import('gnome')
 # The scanner doesn't seem to be smart enough to find the .h files
 testCallback_gir = gnome.generate_gir(
   lib,                               # ref the library target
-  sources: ['testCallback.c', 'testCallback.h', 'testCallbackPersistent.c', 'testCallbackPersistent.h'],
+  sources: ['testCallback.c', 'testCallback.h',
+            'testCallbackPersistent.c', 'testCallbackPersistent.h',
+            'testCallbackGList.c', 'testCallbackGList.h'],
   namespace: 'TestCallback',
   nsversion: '1.0',                # required argument to g-ir-scanner
   identifier_prefix: 'TestCallback',

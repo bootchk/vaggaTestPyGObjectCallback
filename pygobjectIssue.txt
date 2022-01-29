@@ -31,7 +31,7 @@ typedef void (* TestCallbackCallbackWData)
                                        );
 ```
 
-The understanding is that PyGObject will marshall (array_length, drawables) into a Python list.
+I understand PyGObject should marshall (array_length, drawables) into a Python list.
 
 The C library is TestCallback.
 It has two functions.
@@ -61,7 +61,7 @@ TestCallback.callCallbackWData()
 ```
 
 Expect "Called back" to be printed.
-Yet get:
+Instead get:
 ```
 TypeError: callbackWData() takes 2 positional arguments but 3 were given
 ```

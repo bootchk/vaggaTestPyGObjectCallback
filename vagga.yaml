@@ -207,3 +207,6 @@ commands:
 
       echo " \n Run test program in Python"
       python3 testCallbackPersistent.py
+
+      echo " \n Run test program in Python"
+      python3 testCallbackGList.py
